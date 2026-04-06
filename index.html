@@ -693,7 +693,7 @@ function setupUI(){
   const labels={superadmin:'⭐ Super Admin',admin:'🔐 Admin',sponsor:'🎙️ Sponsor',viewer:'👁️ Viewer'};
   rp.textContent=labels[currentRole]||'👁️ Viewer';
   rp.className='role-pill '+currentRole;
-  if(currentRole==='admin'||currentRole==='superadmin') document.getElementById('upload-bar').classList.add('show');
+  if((currentRole==='admin'||currentRole==='superadmin')&&currentRole!=='sponsor') document.getElementById('upload-bar').classList.add('show');
   if(currentRole==='superadmin') document.getElementById('tab-admin').style.display='flex';
   if(currentRole==='viewer'||currentRole==='sponsor'){
     const vs=document.getElementById('viewer-strip');
