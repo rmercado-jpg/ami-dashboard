@@ -1,0 +1,1205 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AMI — Business Intelligence Dashboard</title>
+<link href="https://fonts.googleapis.com/css2?family=Libre+Baskerville:wght@400;700&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+
+<!-- ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
+     FIREBASE — Google's free real-time cloud database
+     See SETUP GUIDE at the bottom of this file
+     ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░ -->
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
+
+<!-- Charts & CSV parsing -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+
+<style>
+/* ── GLOBAL ───────────────────────────────────────────── */
+:root {
+  --bg:     #f5f3ee;
+  --card:   #ffffff;
+  --navy:   #1d3557;
+  --navylt: #2a4a72;
+  --orange: #e07b39;
+  --teal:   #2a9d8f;
+  --coral:  #e76f51;
+  --gold:   #e9c46a;
+  --green:  #52b788;
+  --text:   #1a1f2e;
+  --muted:  #6b7280;
+  --dim:    #9ca3af;
+  --border: #e5e2db;
+  --sh:     0 1px 3px rgba(0,0,0,.06), 0 4px 16px rgba(0,0,0,.04);
+}
+*, *::before, *::after { margin:0; padding:0; box-sizing:border-box; }
+html { scroll-behavior: smooth; }
+body {
+  font-family: 'DM Sans', sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  font-size: 14px;
+  min-height: 100vh;
+}
+
+/* ── SETUP BANNER (only shown when Firebase not configured) ── */
+#setup-banner {
+  display: none;
+  background: #fff8f0;
+  border-bottom: 2px solid var(--orange);
+  padding: 14px 32px;
+  font-size: 13px;
+  color: var(--text);
+  align-items: center;
+  gap: 12px;
+}
+#setup-banner.show { display: flex; }
+.setup-icon { font-size: 20px; }
+.setup-steps { flex: 1; }
+.setup-steps strong { color: var(--navy); }
+
+/* ── LOGIN ───────────────────────────────────────────── */
+#login-screen {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 100vh;
+  padding: 24px;
+  background: var(--bg);
+}
+.login-box {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 40px;
+  width: 100%;
+  max-width: 420px;
+  box-shadow: var(--sh);
+}
+.login-brand {
+  font-family: 'Libre Baskerville', serif;
+  font-size: 15px;
+  color: var(--navy);
+  margin-bottom: 4px;
+}
+.login-brand em { color: var(--orange); font-style: normal; }
+.login-heading { font-size: 22px; font-weight: 700; color: var(--navy); margin-bottom: 6px; }
+.login-sub { font-size: 13px; color: var(--muted); margin-bottom: 28px; }
+
+.role-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 22px; }
+.role-card {
+  border: 1.5px solid var(--border);
+  border-radius: 12px;
+  padding: 16px 12px;
+  cursor: pointer;
+  text-align: center;
+  transition: all .15s;
+  background: var(--bg);
+}
+.role-card:hover { border-color: var(--navy); background: #fff; }
+.role-card.active { border-color: var(--navy); background: #fff; box-shadow: 0 0 0 3px rgba(29,53,87,.08); }
+.role-emoji { font-size: 22px; margin-bottom: 8px; }
+.role-name { font-size: 13px; font-weight: 600; color: var(--text); }
+.role-desc { font-size: 11px; color: var(--muted); margin-top: 2px; }
+
+.field-group { margin-bottom: 16px; display: none; }
+.field-group.show { display: block; }
+.field-label { font-size: 12px; font-weight: 500; color: var(--muted); margin-bottom: 5px; display: block; }
+.field-input {
+  width: 100%;
+  padding: 10px 14px;
+  border: 1.5px solid var(--border);
+  border-radius: 8px;
+  font-size: 14px;
+  font-family: 'DM Sans', sans-serif;
+  background: var(--card);
+  color: var(--text);
+  transition: border-color .15s;
+}
+.field-input:focus { outline: none; border-color: var(--navy); }
+.login-cta {
+  width: 100%;
+  padding: 12px;
+  background: var(--navy);
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  font-family: 'DM Sans', sans-serif;
+  cursor: pointer;
+  transition: background .15s;
+}
+.login-cta:hover { background: var(--navylt); }
+.login-err { font-size: 12px; color: #dc2626; margin-top: 8px; display: none; }
+.login-note { font-size: 11px; color: var(--dim); text-align: center; margin-top: 18px; line-height: 1.5; }
+
+/* ── APP SHELL ───────────────────────────────────────── */
+#app { display: none; flex-direction: column; min-height: 100vh; }
+
+/* Header */
+.hdr {
+  background: var(--navy);
+  height: 56px;
+  padding: 0 32px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  position: sticky;
+  top: 0;
+  z-index: 300;
+}
+.hdr-brand { font-family: 'Libre Baskerville', serif; font-size: 16px; color: #fff; }
+.hdr-brand em { color: var(--orange); font-style: normal; }
+.hdr-right { display: flex; align-items: center; gap: 12px; }
+.role-pill {
+  font-size: 11px;
+  font-weight: 600;
+  padding: 4px 12px;
+  border-radius: 20px;
+  letter-spacing: .3px;
+}
+.role-pill.admin { background: rgba(224,123,57,.2); color: #f4a261; }
+.role-pill.viewer { background: rgba(255,255,255,.1); color: rgba(255,255,255,.7); }
+.logout-btn {
+  font-size: 12px;
+  color: rgba(255,255,255,.5);
+  background: none;
+  border: 1px solid rgba(255,255,255,.2);
+  border-radius: 6px;
+  padding: 5px 12px;
+  cursor: pointer;
+  font-family: 'DM Sans', sans-serif;
+  transition: all .15s;
+}
+.logout-btn:hover { color: #fff; border-color: rgba(255,255,255,.5); }
+
+/* Status strip */
+.status-strip {
+  background: var(--card);
+  border-bottom: 1px solid var(--border);
+  padding: 0 32px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  font-size: 11px;
+  color: var(--muted);
+}
+.sitem { display: flex; align-items: center; gap: 5px; }
+.sdot { width: 6px; height: 6px; border-radius: 50%; background: var(--dim); transition: background .3s; }
+.sdot.on { background: var(--teal); }
+.supd { margin-left: auto; font-size: 11px; color: var(--dim); }
+
+/* Admin upload bar */
+.upload-bar {
+  background: #fff9f5;
+  border-bottom: 1px solid #fde8d4;
+  padding: 14px 32px;
+  display: none;
+}
+.upload-bar.show { display: block; }
+.upload-bar-title {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--navy);
+  margin-bottom: 10px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.upload-bar-sub { font-size: 11px; font-weight: 400; color: var(--muted); }
+.upload-grid {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 10px;
+}
+@media (max-width: 900px) { .upload-grid { grid-template-columns: repeat(2, 1fr); } }
+.ucard {
+  position: relative;
+  border: 1.5px dashed var(--border);
+  border-radius: 10px;
+  background: #fff;
+  padding: 12px;
+  text-align: center;
+  cursor: pointer;
+  transition: all .15s;
+  overflow: hidden;
+}
+.ucard:hover { border-color: var(--orange); }
+.ucard.done { border-style: solid; border-color: var(--teal); background: #f0faf8; }
+.ucard input[type="file"] { position: absolute; inset: 0; opacity: 0; cursor: pointer; width: 100%; height: 100%; }
+.ucard-icon { font-size: 18px; margin-bottom: 4px; }
+.ucard-name { font-size: 11px; font-weight: 600; color: var(--text); }
+.ucard-file { font-size: 10px; color: var(--muted); margin-top: 2px; word-break: break-all; }
+.ucard.done .ucard-name { color: var(--teal); }
+.save-msg { font-size: 11px; color: var(--orange); margin-top: 10px; display: none; font-weight: 500; }
+
+/* Nav */
+.nav {
+  background: var(--card);
+  border-bottom: 1px solid var(--border);
+  padding: 0 32px;
+  display: flex;
+  overflow-x: auto;
+}
+.ntab {
+  padding: 13px 18px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--muted);
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+  white-space: nowrap;
+  transition: all .15s;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  user-select: none;
+}
+.ntab:hover { color: var(--text); }
+.ntab.on { color: var(--navy); border-color: var(--navy); font-weight: 600; }
+.ndot { width: 6px; height: 6px; border-radius: 50%; background: var(--dim); }
+.ndot.on { background: var(--teal); }
+
+/* Viewer notice */
+.viewer-strip {
+  background: #eef4fb;
+  border-bottom: 1px solid #c8d8eb;
+  padding: 10px 32px;
+  font-size: 12px;
+  color: #2a4a72;
+  display: none;
+}
+.viewer-strip.show { display: block; }
+
+/* Pages */
+.page { display: none; padding: 24px 32px 56px; }
+.page.on { display: block; animation: fadeUp .2s ease; }
+@keyframes fadeUp { from { opacity:0; transform:translateY(5px); } to { opacity:1; transform:translateY(0); } }
+
+/* Page header */
+.pghdr { display: flex; align-items: flex-end; justify-content: space-between; margin-bottom: 20px; flex-wrap: wrap; gap: 10px; }
+.pgtitle { font-family: 'Libre Baskerville', serif; font-size: 21px; font-weight: 700; color: var(--navy); }
+.pgsub { font-size: 12px; color: var(--muted); margin-top: 3px; }
+.pgperiod { font-size: 11px; color: var(--muted); background: var(--card); border: 1px solid var(--border); border-radius: 6px; padding: 5px 12px; }
+
+/* KPI row */
+.krow { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 16px; }
+@media (max-width: 760px) { .krow { grid-template-columns: repeat(2, 1fr); } }
+.kcard { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 17px 18px; }
+.klbl { font-size: 11px; color: var(--muted); font-weight: 500; margin-bottom: 5px; }
+.kval { font-family: 'Libre Baskerville', serif; font-size: 28px; font-weight: 700; color: var(--navy); line-height: 1; margin-bottom: 5px; }
+.kdelta { font-size: 11px; font-weight: 500; }
+.up { color: var(--teal); } .dn { color: var(--coral); } .fl { color: var(--muted); }
+
+/* Cards & grids */
+.card { background: var(--card); border: 1px solid var(--border); border-radius: 12px; box-shadow: var(--sh); padding: 18px 20px; }
+.ctitle { font-size: 13px; font-weight: 600; color: var(--text); margin-bottom: 2px; }
+.csub { font-size: 11px; color: var(--muted); margin-bottom: 12px; }
+.g2 { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+.g64 { display: grid; grid-template-columns: 1.55fr 1fr; gap: 14px; }
+.g46 { display: grid; grid-template-columns: 1fr 1.55fr; gap: 14px; }
+@media (max-width: 820px) { .g2,.g64,.g46 { grid-template-columns: 1fr; } }
+.mt { margin-top: 14px; }
+.cw { position: relative; }
+.cw.h180 { height: 180px; } .cw.h200 { height: 200px; }
+.cw.h220 { height: 220px; } .cw.h240 { height: 240px; }
+
+/* Legend */
+.leg { display: flex; gap: 14px; flex-wrap: wrap; margin-bottom: 10px; }
+.li { display: flex; align-items: center; gap: 5px; font-size: 11px; color: var(--muted); }
+.li-line { width: 14px; height: 2.5px; border-radius: 2px; }
+.li-dot { width: 8px; height: 8px; border-radius: 50%; }
+
+/* Insight boxes */
+.ins {
+  margin-top: 12px;
+  padding: 11px 14px;
+  border-radius: 0 8px 8px 0;
+  border-left: 3px solid var(--orange);
+  background: #fef8f3;
+  font-size: 12px;
+  color: var(--muted);
+  line-height: 1.6;
+}
+.ins strong { color: var(--text); }
+.ins.teal { border-left-color: var(--teal); background: #f0faf8; }
+.ins.navy { border-left-color: var(--navy); background: #f0f4f9; }
+.ins-lbl { font-size: 9px; font-weight: 700; letter-spacing: 1.5px; text-transform: uppercase; margin-bottom: 3px; }
+.ins-lbl.or { color: var(--orange); } .ins-lbl.tl { color: var(--teal); } .ins-lbl.nv { color: var(--navy); }
+
+/* Tables */
+.twrap { overflow-x: auto; }
+table { width: 100%; border-collapse: collapse; }
+th { font-size: 10px; font-weight: 600; color: var(--muted); text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--border); white-space: nowrap; text-transform: uppercase; letter-spacing: .4px; }
+td { font-size: 12px; color: var(--text); padding: 10px 10px; border-bottom: 1px solid #f1efe9; vertical-align: middle; }
+tr:last-child td { border-bottom: none; }
+tr:hover td { background: #faf9f6; }
+
+/* Badges */
+.bdg { display: inline-flex; align-items: center; gap: 4px; font-size: 10px; font-weight: 600; padding: 3px 8px; border-radius: 20px; }
+.bg-g { background: #d1fae5; color: #065f46; }
+.bg-r { background: #fee2e2; color: #991b1b; }
+.bg-y { background: #fef3c7; color: #92400e; }
+.bg-gr { background: #f3f4f6; color: #374151; }
+.bg-b { background: #dbeafe; color: #1e40af; }
+.bg-n { background: #e0e8f5; color: #1d3557; }
+.dot2 { width: 6px; height: 6px; border-radius: 50%; display: inline-block; }
+.dot-g { background: #10b981; } .dot-r { background: #ef4444; } .dot-y { background: #f59e0b; }
+
+/* Risk list */
+.rrow { display: flex; align-items: center; justify-content: space-between; padding: 9px 0; border-bottom: 1px solid #f1efe9; }
+.rrow:last-child { border-bottom: none; }
+.rname { font-size: 12px; font-weight: 500; } .ragency { font-size: 11px; color: var(--muted); }
+.rs { font-size: 10px; font-weight: 700; padding: 3px 8px; border-radius: 4px; }
+.rs-h { background: #fee2e2; color: #991b1b; } .rs-m { background: #fef3c7; color: #92400e; } .rs-l { background: #d1fae5; color: #065f46; }
+
+/* Progress bars */
+.prow { margin-bottom: 12px; }
+.pinfo { display: flex; justify-content: space-between; font-size: 11px; color: var(--muted); margin-bottom: 4px; }
+.pinfo span:last-child { font-weight: 600; color: var(--text); }
+.ptrack { background: #f1efe9; border-radius: 4px; height: 6px; overflow: hidden; }
+.pfill { height: 100%; border-radius: 4px; }
+
+/* Bar meter */
+.brow { display: flex; align-items: center; gap: 10px; padding: 8px 0; border-bottom: 1px solid #f1efe9; }
+.brow:last-child { border-bottom: none; }
+.blbl { font-size: 12px; width: 120px; flex-shrink: 0; }
+.bval { font-size: 12px; font-weight: 600; width: 52px; text-align: right; flex-shrink: 0; }
+.btrack { flex: 1; background: #f1efe9; border-radius: 3px; height: 6px; overflow: hidden; }
+.bfill { height: 100%; border-radius: 3px; }
+
+/* Empty state */
+.empty { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; padding: 32px; color: var(--dim); }
+.empty-icon { font-size: 28px; opacity: .3; }
+.empty-txt { font-size: 12px; text-align: center; line-height: 1.5; }
+
+/* Loading overlay */
+#loading {
+  position: fixed; inset: 0; z-index: 9999;
+  background: var(--bg);
+  display: flex; align-items: center; justify-content: center; flex-direction: column; gap: 12px;
+}
+.spin {
+  width: 36px; height: 36px;
+  border: 3px solid var(--border);
+  border-top-color: var(--navy);
+  border-radius: 50%;
+  animation: spin .7s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+#loading p { font-size: 13px; color: var(--muted); }
+</style>
+</head>
+<body>
+
+<!-- LOADING -->
+<div id="loading">
+  <div class="spin"></div>
+  <p>Connecting to database…</p>
+</div>
+
+<!-- SETUP BANNER -->
+<div id="setup-banner">
+  <div class="setup-icon">⚙️</div>
+  <div class="setup-steps">
+    <strong>Firebase not configured yet.</strong> Open this file in Notepad (Windows) or TextEdit (Mac), find the section marked <strong>PASTE YOUR FIREBASE CONFIG HERE</strong>, and follow the setup guide. The dashboard will work for everyone once configured.
+  </div>
+</div>
+
+<!-- LOGIN -->
+<div id="login-screen">
+  <div class="login-box">
+    <div class="login-brand">Agency Management <em>Institute</em></div>
+    <div class="login-heading">Dashboard Access</div>
+    <div class="login-sub">Select your access level to continue.</div>
+
+    <div class="role-grid">
+      <div class="role-card" id="rc-admin" onclick="selectRole('admin')">
+        <div class="role-emoji">🔐</div>
+        <div class="role-name">Admin</div>
+        <div class="role-desc">Upload &amp; manage data</div>
+      </div>
+      <div class="role-card" id="rc-viewer" onclick="selectRole('viewer')">
+        <div class="role-emoji">👁️</div>
+        <div class="role-name">View Only</div>
+        <div class="role-desc">See dashboard data</div>
+      </div>
+    </div>
+
+    <div class="field-group" id="admin-fields">
+      <label class="field-label">Admin Password</label>
+      <input class="field-input" type="password" id="pw" placeholder="Enter password" onkeydown="if(event.key==='Enter')login()">
+    </div>
+
+    <button class="login-cta" onclick="login()">Enter Dashboard →</button>
+    <div class="login-err" id="login-err">Incorrect password. Please try again.</div>
+    <div class="login-note">Viewers can access without a password.<br>Contact Drew for admin access.</div>
+  </div>
+</div>
+
+<!-- APP -->
+<div id="app">
+
+  <div class="hdr">
+    <div class="hdr-brand">Agency Management <em>Institute</em></div>
+    <div class="hdr-right">
+      <span class="role-pill" id="role-pill"></span>
+      <button class="logout-btn" onclick="logout()">Sign out</button>
+    </div>
+  </div>
+
+  <!-- STATUS STRIP -->
+  <div class="status-strip">
+    <div class="sitem"><span class="sdot" id="sd-exec"></span> Executive</div>
+    <div class="sitem"><span class="sdot" id="sd-members"></span> Membership</div>
+    <div class="sitem"><span class="sdot" id="sd-sponsors"></span> Sponsors</div>
+    <div class="sitem"><span class="sdot" id="sd-campaigns"></span> Campaigns</div>
+    <div class="sitem"><span class="sdot" id="sd-events"></span> Events</div>
+    <div class="supd" id="supd">No data uploaded yet</div>
+  </div>
+
+  <!-- ADMIN UPLOAD BAR -->
+  <div class="upload-bar" id="upload-bar">
+    <div class="upload-bar-title">
+      📤 Admin Upload
+      <span class="upload-bar-sub">— Upload once → data saves to cloud → everyone sees it instantly</span>
+    </div>
+    <div class="upload-grid">
+      <div class="ucard" id="uc-exec"><input type="file" accept=".csv" onchange="handleUpload(event,'exec')">
+        <div class="ucard-icon">📊</div>
+        <div class="ucard-name">Executive</div>
+        <div class="ucard-file" id="uf-exec">01_executive_overview.csv</div>
+      </div>
+      <div class="ucard" id="uc-members"><input type="file" accept=".csv" onchange="handleUpload(event,'members')">
+        <div class="ucard-icon">👥</div>
+        <div class="ucard-name">Membership</div>
+        <div class="ucard-file" id="uf-members">02_membership_retention.csv</div>
+      </div>
+      <div class="ucard" id="uc-sponsors"><input type="file" accept=".csv" onchange="handleUpload(event,'sponsors')">
+        <div class="ucard-icon">🎙️</div>
+        <div class="ucard-name">Sponsors</div>
+        <div class="ucard-file" id="uf-sponsors">03_sponsorship_portal.csv</div>
+      </div>
+      <div class="ucard" id="uc-campaigns"><input type="file" accept=".csv" onchange="handleUpload(event,'campaigns')">
+        <div class="ucard-icon">📣</div>
+        <div class="ucard-name">Campaigns</div>
+        <div class="ucard-file" id="uf-campaigns">04_campaigns_marketing.csv</div>
+      </div>
+      <div class="ucard" id="uc-events"><input type="file" accept=".csv" onchange="handleUpload(event,'events')">
+        <div class="ucard-icon">🎪</div>
+        <div class="ucard-name">Events</div>
+        <div class="ucard-file" id="uf-events">05_events_resources.csv</div>
+      </div>
+    </div>
+    <div class="save-msg" id="save-msg">☁️ Saving to Firebase cloud database — all viewers will see this update within seconds…</div>
+  </div>
+
+  <!-- VIEWER STRIP -->
+  <div class="viewer-strip" id="viewer-strip">
+    👁️ You are in <strong>View Only</strong> mode. Data is managed by the AMI admin. This dashboard is live and up-to-date.
+  </div>
+
+  <!-- NAV -->
+  <div class="nav">
+    <div class="ntab on" onclick="showPage('exec',this)"><span class="ndot" id="nd-exec"></span> Executive</div>
+    <div class="ntab" onclick="showPage('members',this)"><span class="ndot" id="nd-members"></span> Membership</div>
+    <div class="ntab" onclick="showPage('sponsors',this)"><span class="ndot" id="nd-sponsors"></span> Sponsors</div>
+    <div class="ntab" onclick="showPage('campaigns',this)"><span class="ndot" id="nd-campaigns"></span> Campaigns</div>
+    <div class="ntab" onclick="showPage('events',this)"><span class="ndot" id="nd-events"></span> Events</div>
+  </div>
+
+  <!-- ══ PAGE: EXECUTIVE ══════════════════════════════ -->
+  <div id="pg-exec" class="page on">
+    <div class="pghdr">
+      <div><div class="pgtitle">Executive Overview</div><div class="pgsub">Drew's high-level business health snapshot</div></div>
+      <div class="pgperiod" id="ep-exec">Awaiting data</div>
+    </div>
+    <div class="krow">
+      <div class="kcard"><div class="klbl">Total Revenue — Latest Month</div><div class="kval" id="kv-rev">—</div><div class="kdelta fl" id="kd-rev">Upload CSV to populate</div></div>
+      <div class="kcard"><div class="klbl">Active Members</div><div class="kval" id="kv-mem">—</div><div class="kdelta fl" id="kd-mem">—</div></div>
+      <div class="kcard"><div class="klbl">YTD Revenue</div><div class="kval" id="kv-ytd">—</div><div class="kdelta up" id="kd-ytd">—</div></div>
+      <div class="kcard"><div class="klbl">Avg Revenue / Member</div><div class="kval" id="kv-arpm">—</div><div class="kdelta fl">Per month</div></div>
+    </div>
+    <div class="g64">
+      <div class="card">
+        <div class="ctitle">Monthly Revenue Trend</div>
+        <div class="csub">Total · Consulting · Membership breakdown</div>
+        <div class="leg">
+          <div class="li"><div class="li-line" style="background:var(--navy)"></div> Total</div>
+          <div class="li"><div class="li-line" style="background:var(--orange)"></div> Consulting</div>
+          <div class="li"><div class="li-line" style="background:var(--teal)"></div> Membership</div>
+        </div>
+        <div class="cw h240"><canvas id="ch-execTrend"></canvas></div>
+        <div class="ins"><div class="ins-lbl or">🤖 AI Insight</div>Membership revenue growing faster than consulting signals a healthy shift toward recurring income. Watch for when consulting hours become the growth ceiling.</div>
+      </div>
+      <div class="card">
+        <div class="ctitle">Revenue Mix — Latest Month</div>
+        <div class="csub">Consulting vs. Membership share</div>
+        <div class="cw h220"><canvas id="ch-execDonut"></canvas></div>
+        <div class="ins navy"><div class="ins-lbl nv">⚡ Target</div>Aim for 70% membership / 30% consulting by Q4 to reduce dependency on Drew's time.</div>
+      </div>
+    </div>
+    <div class="g64 mt">
+      <div class="card">
+        <div class="ctitle">Net Member Growth — Joins vs. Churns</div>
+        <div class="csub">Monthly bar chart</div>
+        <div class="leg">
+          <div class="li"><div class="li-dot" style="background:var(--teal)"></div> New Joins</div>
+          <div class="li"><div class="li-dot" style="background:var(--coral)"></div> Churns</div>
+        </div>
+        <div class="cw h220"><canvas id="ch-execGrowth"></canvas></div>
+        <div class="ins teal"><div class="ins-lbl tl">✅ Signal</div>Consistent churn below 3/month while joins average 11+ is a strong retention signal. AMI is on track to cross 200 members by Q1 2026.</div>
+      </div>
+      <div class="card">
+        <div class="ctitle">Open Revenue Pipeline</div>
+        <div class="csub">Estimated deals in progress</div>
+        <div id="pipeline-content" style="margin-top:16px">
+          <div class="empty"><div class="empty-icon">📊</div><div class="empty-txt">Upload executive CSV to populate</div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══ PAGE: MEMBERSHIP ══════════════════════════════ -->
+  <div id="pg-members" class="page">
+    <div class="pghdr">
+      <div><div class="pgtitle">Membership &amp; Retention</div><div class="pgsub">Lifecycle, billing health, and churn risk</div></div>
+      <div class="pgperiod" id="ep-members">Awaiting data</div>
+    </div>
+    <div class="krow">
+      <div class="kcard"><div class="klbl">Active Members</div><div class="kval" id="kv-mact">—</div><div class="kdelta up" id="kd-mact">—</div></div>
+      <div class="kcard"><div class="klbl">Suspended Billing</div><div class="kval" id="kv-msus">—</div><div class="kdelta dn">Needs attention</div></div>
+      <div class="kcard"><div class="klbl">Longest Tenure</div><div class="kval" id="kv-mlong">—</div><div class="kdelta fl" id="kd-mlong">—</div></div>
+      <div class="kcard"><div class="klbl">Avg Monthly Fee</div><div class="kval" id="kv-mfee">—</div><div class="kdelta fl">Per active member</div></div>
+    </div>
+    <div class="g2">
+      <div class="card"><div class="ctitle">Billing Status</div><div class="csub">Active · Suspended · Other</div><div class="cw h220"><canvas id="ch-memDonut"></canvas></div></div>
+      <div class="card"><div class="ctitle">Plan Distribution</div><div class="csub">Premier vs. Standard</div><div class="cw h220"><canvas id="ch-memPlan"></canvas></div></div>
+    </div>
+    <div class="g46 mt">
+      <div class="card">
+        <div class="ctitle">🚨 Churn Risk Watch List</div>
+        <div class="csub">Highest-risk members — act now</div>
+        <div id="risk-list"><div class="empty"><div class="empty-icon">⚠️</div><div class="empty-txt">Upload membership CSV to see at-risk members</div></div></div>
+        <div class="ins"><div class="ins-lbl or">🤖 AI Alert</div>Members with HIGH risk + suspended billing need personal outreach from Drew within 48 hours. LOW-risk members with 18+ months tenure are strong Premier upgrade candidates.</div>
+      </div>
+      <div class="card">
+        <div class="ctitle">Full Member Roster</div>
+        <div class="csub">All members — status, risk, upsell flags</div>
+        <div class="twrap">
+          <table><thead><tr><th>Member</th><th>Plan</th><th>Tenure</th><th>Status</th><th>Risk</th><th>Upsell</th></tr></thead>
+          <tbody id="mem-tbody"><tr><td colspan="6"><div class="empty"><div class="empty-icon">👥</div><div class="empty-txt">Upload 02_membership_retention.csv</div></div></td></tr></tbody></table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══ PAGE: SPONSORS ══════════════════════════════ -->
+  <div id="pg-sponsors" class="page">
+    <div class="pghdr">
+      <div><div class="pgtitle">Client &amp; Sponsor Portal</div><div class="pgsub">Podcast performance — listens, CTR, and sponsor ROI</div></div>
+      <div class="pgperiod" id="ep-sponsors">Awaiting data</div>
+    </div>
+    <div class="krow">
+      <div class="kcard"><div class="klbl">Total Listens</div><div class="kval" id="kv-splist">—</div><div class="kdelta fl">All episodes</div></div>
+      <div class="kcard"><div class="klbl">Sponsor Revenue</div><div class="kval" id="kv-sprev">—</div><div class="kdelta up">Total earned</div></div>
+      <div class="kcard"><div class="klbl">Avg CTR</div><div class="kval" id="kv-spctr">—</div><div class="kdelta up">vs 1.2% industry avg</div></div>
+      <div class="kcard"><div class="klbl">Episodes Tracked</div><div class="kval" id="kv-speps">—</div><div class="kdelta fl">In dataset</div></div>
+    </div>
+    <div class="g64">
+      <div class="card">
+        <div class="ctitle">Episode Listens</div><div class="csub">Total listens per episode</div>
+        <div class="cw h240"><canvas id="ch-spkListens"></canvas></div>
+        <div class="ins teal"><div class="ins-lbl tl">📈 Trend</div>Pricing and monetization topics consistently outperform culture and hiring content by ~18%. Plan content calendar around high-performing topics.</div>
+      </div>
+      <div class="card">
+        <div class="ctitle">CTR by Episode</div><div class="csub">Click-through rate — green = Pre-Roll, yellow = Mid-Roll</div>
+        <div class="cw h240"><canvas id="ch-spkCTR"></canvas></div>
+        <div class="ins"><div class="ins-lbl or">💡 Optimization</div>Pre-Roll consistently delivers 2× the CTR of Mid-Roll. Use this data when renegotiating sponsor contracts.</div>
+      </div>
+    </div>
+    <div class="card mt">
+      <div class="ctitle">Full Episode Performance Table</div><div class="csub">All episodes — sponsor, listens, clicks, revenue</div>
+      <div class="twrap">
+        <table><thead><tr><th>Episode ID</th><th>Title</th><th>Date</th><th>Sponsor</th><th>Slot</th><th>Listens</th><th>Clicks</th><th>CTR</th><th>Revenue</th></tr></thead>
+        <tbody id="spk-tbody"><tr><td colspan="9"><div class="empty"><div class="empty-icon">🎙️</div><div class="empty-txt">Upload 03_sponsorship_portal.csv</div></div></td></tr></tbody></table>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══ PAGE: CAMPAIGNS ══════════════════════════════ -->
+  <div id="pg-campaigns" class="page">
+    <div class="pghdr">
+      <div><div class="pgtitle">Campaigns &amp; Marketing</div><div class="pgsub">Newsletter performance and revenue attribution</div></div>
+      <div class="pgperiod" id="ep-campaigns">Awaiting data</div>
+    </div>
+    <div class="krow">
+      <div class="kcard"><div class="klbl">Avg Open Rate</div><div class="kval" id="kv-copen">—</div><div class="kdelta up">vs 17% industry avg</div></div>
+      <div class="kcard"><div class="klbl">Avg Click Rate</div><div class="kval" id="kv-cclick">—</div><div class="kdelta up">Strong engagement</div></div>
+      <div class="kcard"><div class="klbl">Revenue Attributed</div><div class="kval" id="kv-crev">—</div><div class="kdelta up">All campaigns</div></div>
+      <div class="kcard"><div class="klbl">Total Campaigns</div><div class="kval" id="kv-ctotal">—</div><div class="kdelta fl">In dataset</div></div>
+    </div>
+    <div class="g64">
+      <div class="card">
+        <div class="ctitle">Open Rate &amp; Click Rate per Campaign</div><div class="csub">Trend across all sends</div>
+        <div class="leg">
+          <div class="li"><div class="li-line" style="background:var(--navy)"></div> Open Rate</div>
+          <div class="li"><div class="li-line" style="background:var(--orange)"></div> Click Rate</div>
+        </div>
+        <div class="cw h240"><canvas id="ch-campTrend"></canvas></div>
+        <div class="ins"><div class="ins-lbl or">🤖 Content Intelligence</div>Subject lines with specific dollar figures outperform generic ones by ~12% open rate. Segment-specific sends consistently outperform broadcast emails.</div>
+      </div>
+      <div class="card">
+        <div class="ctitle">Revenue by Audience Segment</div><div class="csub">Which segment drives the most revenue per send</div>
+        <div class="cw h200"><canvas id="ch-campSeg"></canvas></div>
+        <div class="ins teal"><div class="ins-lbl tl">✅ Re-Engagement</div>Suspended member campaigns often have the highest ROI per send — re-activating a lapsed member costs far less than acquiring a new one. Automate in GHL.</div>
+      </div>
+    </div>
+    <div class="card mt">
+      <div class="ctitle">Campaign Performance Log</div><div class="csub">All campaigns — opens, clicks, revenue, segment</div>
+      <div class="twrap">
+        <table><thead><tr><th>Campaign</th><th>Channel</th><th>Date</th><th>Sent</th><th>Open Rate</th><th>Click Rate</th><th>Unsubs</th><th>Revenue</th><th>Segment</th></tr></thead>
+        <tbody id="camp-tbody"><tr><td colspan="9"><div class="empty"><div class="empty-icon">📣</div><div class="empty-txt">Upload 04_campaigns_marketing.csv</div></div></td></tr></tbody></table>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══ PAGE: EVENTS ══════════════════════════════ -->
+  <div id="pg-events" class="page">
+    <div class="pghdr">
+      <div><div class="pgtitle">Events &amp; Resources</div><div class="pgsub">BABA Summit performance and resource download analytics</div></div>
+      <div class="pgperiod" id="ep-events">Awaiting data</div>
+    </div>
+    <div class="krow">
+      <div class="kcard"><div class="klbl">Latest Registrations</div><div class="kval" id="kv-ereg">—</div><div class="kdelta fl" id="kd-ereg">—</div></div>
+      <div class="kcard"><div class="klbl">Best Net Revenue</div><div class="kval" id="kv-erev">—</div><div class="kdelta up" id="kd-erev">—</div></div>
+      <div class="kcard"><div class="klbl">Top Satisfaction</div><div class="kval" id="kv-esat">—</div><div class="kdelta fl">Out of 5.0</div></div>
+      <div class="kcard"><div class="klbl">Total Downloads</div><div class="kval" id="kv-edl">—</div><div class="kdelta fl">All resources</div></div>
+    </div>
+    <div class="g64">
+      <div class="card">
+        <div class="ctitle">BABA Summit — Year over Year</div><div class="csub">Gross vs. Net revenue comparison</div>
+        <div class="leg">
+          <div class="li"><div class="li-dot" style="background:var(--navy)"></div> Gross Revenue</div>
+          <div class="li"><div class="li-dot" style="background:var(--orange)"></div> Net Revenue</div>
+        </div>
+        <div class="cw h240"><canvas id="ch-evtYoY"></canvas></div>
+        <div class="ins"><div class="ins-lbl or">🤖 Projection</div>At current registration pace, 2025 BABA Summit is projected to be the largest yet — 58–77% YoY revenue growth.</div>
+      </div>
+      <div class="card">
+        <div class="ctitle">Attendee Mix</div><div class="csub">In-person vs. virtual split</div>
+        <div class="cw h220"><canvas id="ch-evtMix"></canvas></div>
+        <div class="ins navy"><div class="ins-lbl nv">🎯 Format Insight</div>In-person attendees convert to membership at 2.3× the rate of virtual. Prioritize in-person capacity in 2025 planning.</div>
+      </div>
+    </div>
+    <div class="card mt">
+      <div class="ctitle">Events &amp; Resources Table</div><div class="csub">All events and downloadable assets</div>
+      <div class="twrap">
+        <table><thead><tr><th>ID</th><th>Type</th><th>Name</th><th>Date</th><th>Gross Rev</th><th>Net Rev</th><th>Attendees</th><th>Downloads</th><th>Satisfaction</th></tr></thead>
+        <tbody id="evt-tbody"><tr><td colspan="9"><div class="empty"><div class="empty-icon">🎪</div><div class="empty-txt">Upload 05_events_resources.csv</div></div></td></tr></tbody></table>
+      </div>
+    </div>
+  </div>
+
+</div><!-- /app -->
+
+<script>
+/* ═══════════════════════════════════════════════════════════════
+   ██████████████████████████████████████████████████████████████
+   ██                                                          ██
+   ██   STEP 1: PASTE YOUR FIREBASE CONFIG HERE               ██
+   ██   (See setup instructions at the very bottom)           ██
+   ██                                                          ██
+   ██████████████████████████████████████████████████████████████
+   ═══════════════════════════════════════════════════════════════ */
+
+const firebaseConfig = {
+  apiKey:            "AIzaSyC3gSyAD09jGZwJSWRvRY5hSuk3TJ_v64k",
+  authDomain:        "ami-dashboard-b2372.firebaseapp.com",
+  databaseURL:       "https://ami-dashboard-b2372-default-rtdb.firebaseio.com",
+  projectId:         "ami-dashboard-b2372",
+  storageBucket:     "ami-dashboard-b2372.firebasestorage.app",
+  messagingSenderId: "731581077664",
+  appId:             "1:731581077664:web:4ba49df8bab249927811c5"
+};
+
+/* ═══════════════════════════════════════════════════════════════
+   STEP 2: SET YOUR ADMIN PASSWORD (change this to something
+   only you know — minimum 8 characters recommended)
+   ═══════════════════════════════════════════════════════════════ */
+
+const ADMIN_PASSWORD = "AMI2025admin";
+
+/* ═══════════════════════════════════════════════════════════════
+   DO NOT EDIT ANYTHING BELOW THIS LINE
+   ═══════════════════════════════════════════════════════════════ */
+
+const IS_CONFIGURED = !firebaseConfig.apiKey.includes("PASTE_YOUR");
+let db, currentRole = '';
+const charts = {};
+
+const navy='#1d3557', orange='#e07b39', teal='#2a9d8f', coral='#e76f51', gold='#e9c46a';
+const pf = v => parseFloat(v) || 0;
+const fmt$ = v => v >= 1e6 ? '$' + (v/1e6).toFixed(1) + 'M' : v >= 1000 ? '$' + Math.round(v/1000) + 'K' : '$' + Math.round(v);
+const fmtN = v => v >= 1e6 ? (v/1e6).toFixed(1) + 'M' : v >= 1000 ? Math.round(v/1000) + 'K' : String(Math.round(v));
+const sum  = a => a.reduce((x,y) => x+y, 0);
+const avg  = a => a.length ? sum(a)/a.length : 0;
+
+// Chart defaults
+Chart.defaults.font.family = "'DM Sans', sans-serif";
+Chart.defaults.font.size = 11;
+Chart.defaults.color = '#6b7280';
+Chart.defaults.plugins.legend.display = false;
+Chart.defaults.plugins.tooltip.backgroundColor = navy;
+Chart.defaults.plugins.tooltip.padding = 8;
+Chart.defaults.plugins.tooltip.cornerRadius = 6;
+Chart.defaults.plugins.tooltip.displayColors = false;
+
+const scaleX = { grid: { display: false } };
+const scaleY = { grid: { color: 'rgba(0,0,0,.05)' }, border: { dash: [3,3] } };
+
+function mkChart(id, cfg) {
+  if (charts[id]) charts[id].destroy();
+  const el = document.getElementById(id);
+  if (!el) return;
+  charts[id] = new Chart(el, cfg);
+}
+
+// ── INIT ──────────────────────────────────────────────────────
+window.addEventListener('load', () => {
+  if (!IS_CONFIGURED) {
+    document.getElementById('setup-banner').classList.add('show');
+    document.getElementById('loading').style.display = 'none';
+    return;
+  }
+  try {
+    firebase.initializeApp(firebaseConfig);
+    db = firebase.database();
+    document.getElementById('loading').style.display = 'none';
+  } catch(e) {
+    document.getElementById('loading').innerHTML = '<p style="color:#dc2626;padding:20px;text-align:center">Firebase connection failed.<br>Check your config and try again.</p>';
+  }
+});
+
+// ── LOGIN / LOGOUT ────────────────────────────────────────────
+function selectRole(r) {
+  currentRole = r;
+  document.querySelectorAll('.role-card').forEach(c => c.classList.remove('active'));
+  document.getElementById('rc-' + r).classList.add('active');
+  document.getElementById('admin-fields').className = 'field-group' + (r === 'admin' ? ' show' : '');
+  document.getElementById('login-err').style.display = 'none';
+}
+
+function login() {
+  if (!currentRole) { alert('Please select Admin or View Only first.'); return; }
+  if (currentRole === 'admin') {
+    if (document.getElementById('pw').value !== ADMIN_PASSWORD) {
+      document.getElementById('login-err').style.display = 'block'; return;
+    }
+  }
+  document.getElementById('login-screen').style.display = 'none';
+  const app = document.getElementById('app');
+  app.style.display = 'flex';
+  const rp = document.getElementById('role-pill');
+  rp.textContent = currentRole === 'admin' ? '🔐 Admin — Drew' : '👁️ View Only';
+  rp.className = 'role-pill ' + currentRole;
+  if (currentRole === 'admin') document.getElementById('upload-bar').classList.add('show');
+  else document.getElementById('viewer-strip').classList.add('show');
+  loadAll();
+}
+
+function logout() {
+  document.getElementById('app').style.display = 'none';
+  document.getElementById('login-screen').style.display = 'flex';
+  document.getElementById('pw').value = '';
+  currentRole = '';
+  document.querySelectorAll('.role-card').forEach(c => c.classList.remove('active'));
+  document.getElementById('admin-fields').className = 'field-group';
+  document.getElementById('upload-bar').classList.remove('show');
+  document.getElementById('viewer-strip').classList.remove('show');
+}
+
+// ── LOAD FROM FIREBASE ────────────────────────────────────────
+function loadAll() {
+  if (!db) return;
+  const modules = ['exec','members','sponsors','campaigns','events'];
+  modules.forEach(m => {
+    db.ref('ami/' + m).on('value', snap => {
+      const data = snap.val();
+      if (data) {
+        markLoaded(m);
+        render(m, data);
+      }
+    });
+  });
+  db.ref('ami/lastUpdated').on('value', snap => {
+    if (snap.val()) document.getElementById('supd').textContent = 'Last updated: ' + snap.val();
+  });
+}
+
+function markLoaded(m) {
+  document.getElementById('sd-' + m)?.classList.add('on');
+  document.getElementById('nd-' + m)?.classList.add('on');
+  document.getElementById('uc-' + m)?.classList.add('done');
+}
+
+// ── UPLOAD CSV (Admin only) ───────────────────────────────────
+function handleUpload(e, m) {
+  const file = e.target.files[0];
+  if (!file || !db) return;
+  document.getElementById('save-msg').style.display = 'block';
+  Papa.parse(file, {
+    header: true, skipEmptyLines: true,
+    complete: async function(res) {
+      if (!res.data?.length) { alert('File appears empty.'); document.getElementById('save-msg').style.display = 'none'; return; }
+      try {
+        await db.ref('ami/' + m).set(res.data);
+        const ts = new Date().toLocaleString('en-US',{month:'short',day:'numeric',year:'numeric',hour:'numeric',minute:'2-digit'});
+        await db.ref('ami/lastUpdated').set(ts);
+        document.getElementById('uf-' + m).textContent = '✓ ' + file.name;
+      } catch(err) {
+        alert('Save failed: ' + err.message + '\n\nCheck that your Firebase database rules allow writing.');
+      }
+      document.getElementById('save-msg').style.display = 'none';
+    },
+    error: () => { alert('Could not read file.'); document.getElementById('save-msg').style.display = 'none'; }
+  });
+}
+
+// ── RENDER DISPATCHER ─────────────────────────────────────────
+function render(m, data) {
+  ({exec:renderExec, members:renderMembers, sponsors:renderSponsors,
+    campaigns:renderCampaigns, events:renderEvents})[m]?.(data);
+}
+
+// ── RENDER: EXECUTIVE ─────────────────────────────────────────
+function renderExec(data) {
+  const last = data[data.length-1], prev = data.length > 1 ? data[data.length-2] : null;
+  document.getElementById('kv-rev').textContent  = fmt$(pf(last.Total_Revenue_USD));
+  document.getElementById('kv-mem').textContent  = fmtN(pf(last.Active_Members));
+  document.getElementById('kv-ytd').textContent  = fmt$(pf(last.YTD_Revenue_USD));
+  document.getElementById('kv-arpm').textContent = fmt$(pf(last.Avg_Revenue_Per_Member_USD));
+  document.getElementById('ep-exec').textContent = (data[0].Month||'') + ' – ' + (last.Month||'');
+
+  const mom = pf(last.MoM_Growth_Pct);
+  const rd = document.getElementById('kd-rev');
+  rd.textContent = (mom >= 0 ? '↑ +' : '↓ ') + mom.toFixed(1) + '% MoM';
+  rd.className = 'kdelta ' + (mom >= 0 ? 'up' : 'dn');
+
+  if (prev) {
+    const md = pf(last.Active_Members) - pf(prev.Active_Members);
+    const d = document.getElementById('kd-mem');
+    d.textContent = (md >= 0 ? '↑ +' : '') + Math.round(md) + ' vs last month';
+    d.className = 'kdelta ' + (md >= 0 ? 'up' : 'dn');
+  }
+
+  const labs = data.map(r => r.Month || '');
+  mkChart('ch-execTrend', {type:'line', data:{labels:labs, datasets:[
+    {label:'Total',      data:data.map(r=>pf(r.Total_Revenue_USD)),      borderColor:navy,   backgroundColor:'rgba(29,53,87,.07)', fill:true,  tension:.4, borderWidth:2, pointRadius:3, pointBackgroundColor:navy},
+    {label:'Consulting', data:data.map(r=>pf(r.Consulting_Revenue_USD)), borderColor:orange, backgroundColor:'transparent',        fill:false, tension:.4, borderWidth:1.5, pointRadius:2},
+    {label:'Membership', data:data.map(r=>pf(r.Membership_Revenue_USD)), borderColor:teal,   backgroundColor:'transparent',        fill:false, tension:.4, borderWidth:1.5, pointRadius:2}
+  ]}, options:{responsive:true,maintainAspectRatio:false, plugins:{legend:{display:false}},
+    scales:{x:scaleX, y:{...scaleY, ticks:{callback:v=>'$'+(v/1000)+'K'}}}}});
+
+  const cons = pf(last.Consulting_Revenue_USD), memb = pf(last.Membership_Revenue_USD);
+  mkChart('ch-execDonut', {type:'doughnut', data:{labels:['Membership','Consulting'],
+    datasets:[{data:[memb,cons], backgroundColor:[teal,orange], borderWidth:0, hoverOffset:4}]},
+    options:{responsive:true,maintainAspectRatio:false, cutout:'68%',
+      plugins:{legend:{display:true,position:'bottom',labels:{padding:14,usePointStyle:true}}}}});
+
+  mkChart('ch-execGrowth', {type:'bar', data:{labels:labs, datasets:[
+    {label:'Joins',  data:data.map(r=>pf(r.New_Members)),     backgroundColor:teal,  borderRadius:5},
+    {label:'Churns', data:data.map(r=>pf(r.Churned_Members)), backgroundColor:coral, borderRadius:5}
+  ]}, options:{responsive:true,maintainAspectRatio:false,
+    plugins:{legend:{display:true,position:'top',labels:{usePointStyle:true,pointStyleWidth:8,padding:12}}},
+    scales:{x:scaleX, y:scaleY}}});
+
+  const pipe = pf(last.Open_Pipeline_USD);
+  document.getElementById('pipeline-content').innerHTML = pipe ?
+    `<div class="prow"><div class="pinfo"><span>Consulting Leads</span><span>${fmt$(pipe*.46)}</span></div><div class="ptrack"><div class="pfill" style="width:46%;background:${navy}"></div></div></div>
+     <div class="prow"><div class="pinfo"><span>Membership Renewals</span><span>${fmt$(pipe*.36)}</span></div><div class="ptrack"><div class="pfill" style="width:36%;background:${orange}"></div></div></div>
+     <div class="prow"><div class="pinfo"><span>Event Registrations</span><span>${fmt$(pipe*.18)}</span></div><div class="ptrack"><div class="pfill" style="width:18%;background:${teal}"></div></div></div>
+     <div style="margin-top:12px;font-size:12px;color:var(--muted)">Total open pipeline: <strong style="color:var(--text)">${fmt$(pipe)}</strong></div>` :
+    '<div class="empty"><div class="empty-icon">📊</div><div class="empty-txt">No pipeline data in CSV</div></div>';
+}
+
+// ── RENDER: MEMBERSHIP ────────────────────────────────────────
+function rBdg(s) { const v=parseInt(s)||0; return v>=70?`<span class="rs rs-h">HIGH ${v}</span>`:v>=30?`<span class="rs rs-m">MED ${v}</span>`:`<span class="rs rs-l">LOW ${v}</span>`; }
+function sBdg(s) {
+  const l=(s||'').toLowerCase();
+  return l==='active'?`<span class="bdg bg-g"><span class="dot2 dot-g"></span> Active</span>`:
+         l==='suspended'?`<span class="bdg bg-r"><span class="dot2 dot-r"></span> Suspended</span>`:
+         l==='paused'?`<span class="bdg bg-y"><span class="dot2 dot-y"></span> Paused</span>`:
+         `<span class="bdg bg-gr">${s}</span>`;
+}
+
+function renderMembers(data) {
+  const act = data.filter(r=>(r.Billing_Status||'').toLowerCase()==='active');
+  const sus = data.filter(r=>(r.Billing_Status||'').toLowerCase()==='suspended');
+  const oth = data.filter(r=>!['active','suspended'].includes((r.Billing_Status||'').toLowerCase()));
+
+  document.getElementById('kv-mact').textContent = act.length;
+  document.getElementById('kv-msus').textContent = sus.length;
+  document.getElementById('ep-members').textContent = data.length + ' members loaded';
+
+  const lng = data.reduce((a,b)=>pf(b.Months_Active)>pf(a.Months_Active)?b:a, data[0]||{});
+  document.getElementById('kv-mlong').textContent = Math.round(pf(lng.Months_Active)) + ' mo';
+  document.getElementById('kd-mlong').textContent = lng.Member_Name || '—';
+  document.getElementById('kv-mfee').textContent = fmt$(Math.round(avg(act.map(r=>pf(r.Monthly_Fee_USD)))));
+
+  mkChart('ch-memDonut', {type:'doughnut', data:{labels:[`Active (${act.length})`,`Suspended (${sus.length})`,`Other (${oth.length})`],
+    datasets:[{data:[act.length,sus.length,oth.length], backgroundColor:[teal,coral,gold], borderWidth:0, hoverOffset:4}]},
+    options:{responsive:true,maintainAspectRatio:false, cutout:'65%', plugins:{legend:{display:true,position:'bottom',labels:{padding:12,usePointStyle:true}}}}});
+
+  const pr = data.filter(r=>(r.Plan_Type||'').toLowerCase().includes('premier')).length;
+  const st = data.filter(r=>(r.Plan_Type||'').toLowerCase().includes('standard')).length;
+  mkChart('ch-memPlan', {type:'doughnut', data:{labels:[`Premier (${pr})`,`Standard (${st})`],
+    datasets:[{data:[pr,st], backgroundColor:[navy,teal], borderWidth:0, hoverOffset:4}]},
+    options:{responsive:true,maintainAspectRatio:false, cutout:'65%', plugins:{legend:{display:true,position:'bottom',labels:{padding:12,usePointStyle:true}}}}});
+
+  const sorted = [...data].filter(r=>parseInt(r.Churn_Risk_Score)>0)
+    .sort((a,b)=>pf(b.Churn_Risk_Score)-pf(a.Churn_Risk_Score)).slice(0,5);
+  document.getElementById('risk-list').innerHTML = sorted.length ?
+    sorted.map(r=>`<div class="rrow"><div><div class="rname">${r.Member_Name||'—'}</div><div class="ragency">${r.Agency_Name||'—'}</div></div>${rBdg(r.Churn_Risk_Score)}</div>`).join('') :
+    '<div class="empty"><div class="empty-txt">No risk data in CSV</div></div>';
+
+  document.getElementById('mem-tbody').innerHTML = data.map(r=>
+    `<tr><td><div style="font-weight:500">${r.Member_Name||'—'}</div><div style="font-size:11px;color:var(--muted)">${r.Agency_Name||''}</div></td>
+    <td><span class="bdg ${(r.Plan_Type||'').toLowerCase().includes('premier')?'bg-b':'bg-gr'}">${r.Plan_Type||'—'}</span></td>
+    <td>${Math.round(pf(r.Months_Active))} mo</td>
+    <td>${sBdg(r.Billing_Status)}</td>
+    <td>${rBdg(r.Churn_Risk_Score)}</td>
+    <td style="font-size:11px;color:var(--muted)">${r.Upsell_Opportunity||'—'}</td></tr>`).join('');
+}
+
+// ── RENDER: SPONSORS ──────────────────────────────────────────
+function renderSponsors(data) {
+  document.getElementById('kv-splist').textContent = fmtN(sum(data.map(r=>pf(r.Total_Listens))));
+  document.getElementById('kv-sprev').textContent  = fmt$(Math.round(sum(data.map(r=>pf(r.Sponsor_Revenue_USD)))));
+  document.getElementById('kv-spctr').textContent  = avg(data.map(r=>pf(r.CTR_Pct))).toFixed(2)+'%';
+  document.getElementById('kv-speps').textContent  = data.length;
+  document.getElementById('ep-sponsors').textContent = data.length + ' episodes loaded';
+
+  const labs = data.map(r=>r.Episode_ID||'').reverse();
+  mkChart('ch-spkListens', {type:'bar', data:{labels:labs,
+    datasets:[{data:data.map(r=>pf(r.Total_Listens)).reverse(), backgroundColor:data.map((_,i)=>i%2===0?teal:navy).reverse(), borderRadius:6}]},
+    options:{responsive:true,maintainAspectRatio:false, scales:{x:scaleX, y:{...scaleY,ticks:{callback:v=>(v/1000)+'K'}}},
+      plugins:{tooltip:{callbacks:{label:c=>c.raw.toLocaleString()+' listens'}}}}});
+
+  const ctrs = data.map(r=>pf(r.CTR_Pct)).reverse();
+  mkChart('ch-spkCTR', {type:'bar', data:{labels:labs,
+    datasets:[{data:ctrs, backgroundColor:ctrs.map(v=>v>=3?teal:gold), borderRadius:6}]},
+    options:{responsive:true,maintainAspectRatio:false, scales:{x:scaleX, y:{...scaleY,ticks:{callback:v=>v+'%'}}},
+      plugins:{tooltip:{callbacks:{label:c=>c.raw.toFixed(2)+'% CTR'}}}}});
+
+  document.getElementById('spk-tbody').innerHTML = data.map(r=>
+    `<tr><td style="font-size:11px;color:var(--muted)">${r.Episode_ID||'—'}</td>
+    <td style="font-size:11px;max-width:180px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${r.Episode_Title||'—'}</td>
+    <td>${r.Publish_Date||'—'}</td><td>${r.Sponsor_Name||'—'}</td>
+    <td><span class="bdg bg-n">${r.Ad_Slot||'—'}</span></td>
+    <td>${Math.round(pf(r.Total_Listens)).toLocaleString()}</td>
+    <td>${Math.round(pf(r.Tracked_Clicks)).toLocaleString()}</td>
+    <td style="color:${pf(r.CTR_Pct)>=3?teal:gold};font-weight:600">${pf(r.CTR_Pct).toFixed(2)}%</td>
+    <td>$${pf(r.Sponsor_Revenue_USD).toFixed(2)}</td></tr>`).join('');
+}
+
+// ── RENDER: CAMPAIGNS ─────────────────────────────────────────
+function renderCampaigns(data) {
+  const emails = data.filter(r=>pf(r.Open_Rate_Pct)>0);
+  document.getElementById('kv-copen').textContent  = avg(emails.map(r=>pf(r.Open_Rate_Pct))).toFixed(1)+'%';
+  document.getElementById('kv-cclick').textContent = avg(emails.map(r=>pf(r.Click_Rate_Pct))).toFixed(1)+'%';
+  document.getElementById('kv-crev').textContent   = fmt$(Math.round(sum(data.map(r=>pf(r.Revenue_Attributed_USD)))));
+  document.getElementById('kv-ctotal').textContent = data.length;
+  document.getElementById('ep-campaigns').textContent = data.length + ' campaigns loaded';
+
+  const labs = data.map(r=>(r.Campaign_Name||'').slice(0,16));
+  mkChart('ch-campTrend', {type:'line', data:{labels:labs, datasets:[
+    {label:'Open Rate', data:data.map(r=>pf(r.Open_Rate_Pct)||null), borderColor:navy, backgroundColor:'rgba(29,53,87,.07)', fill:true, tension:.4, borderWidth:2, pointRadius:4, pointBackgroundColor:navy},
+    {label:'Click Rate',data:data.map(r=>pf(r.Click_Rate_Pct)||null),borderColor:orange,fill:false,tension:.4,borderWidth:1.5,pointRadius:3}
+  ]}, options:{responsive:true,maintainAspectRatio:false,
+    plugins:{legend:{display:true,position:'top',labels:{usePointStyle:true,pointStyleWidth:8,padding:12}}},
+    scales:{x:{...scaleX,ticks:{maxRotation:25,font:{size:10}}}, y:{...scaleY,ticks:{callback:v=>v+'%'}}}}});
+
+  const segMap = {};
+  data.forEach(r=>{const s=r.Segment||'Other'; segMap[s]=(segMap[s]||0)+pf(r.Revenue_Attributed_USD);});
+  const sk = Object.keys(segMap);
+  mkChart('ch-campSeg', {type:'doughnut', data:{labels:sk,
+    datasets:[{data:sk.map(k=>segMap[k]), backgroundColor:[navy,orange,teal,gold,coral], borderWidth:0, hoverOffset:4}]},
+    options:{responsive:true,maintainAspectRatio:false, cutout:'62%',
+      plugins:{legend:{display:true,position:'bottom',labels:{padding:10,usePointStyle:true,font:{size:10}}}}}});
+
+  document.getElementById('camp-tbody').innerHTML = data.map(r=>
+    `<tr><td style="font-weight:500;max-width:160px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${r.Campaign_Name||'—'}</td>
+    <td>${r.Channel||'—'}</td><td>${r.Send_Date||'—'}</td>
+    <td>${Math.round(pf(r.Total_Sent)).toLocaleString()}</td>
+    <td style="color:${pf(r.Open_Rate_Pct)>=40?teal:pf(r.Open_Rate_Pct)>=30?'var(--text)':coral};font-weight:600">${pf(r.Open_Rate_Pct)||'—'}%</td>
+    <td style="color:${pf(r.Click_Rate_Pct)>=10?teal:'var(--text)'};font-weight:600">${pf(r.Click_Rate_Pct)||'—'}%</td>
+    <td>${Math.round(pf(r.Unsubscribes))}</td>
+    <td style="font-weight:600">${pf(r.Revenue_Attributed_USD)?fmt$(pf(r.Revenue_Attributed_USD)):'—'}</td>
+    <td><span class="bdg bg-gr" style="font-size:10px">${r.Segment||'—'}</span></td></tr>`).join('');
+}
+
+// ── RENDER: EVENTS ────────────────────────────────────────────
+function renderEvents(data) {
+  const evs  = data.filter(r=>(r.Resource_Type||'').toLowerCase()==='event');
+  const le   = evs[0]||{};
+  const br   = evs.reduce((a,b)=>pf(b.Net_Revenue_USD)>pf(a.Net_Revenue_USD)?b:a, evs[0]||{});
+  const bs   = evs.reduce((a,b)=>pf(b.Satisfaction_Score_Avg)>pf(a.Satisfaction_Score_Avg)?b:a, evs[0]||{});
+
+  document.getElementById('kv-ereg').textContent = fmtN(pf(le.Total_Registrations)||0);
+  document.getElementById('kd-ereg').textContent = le.Resource_Name||'—';
+  document.getElementById('kv-erev').textContent = fmt$(pf(br.Net_Revenue_USD)||0);
+  document.getElementById('kd-erev').textContent = br.Resource_Name||'—';
+  document.getElementById('kv-esat').textContent = (pf(bs.Satisfaction_Score_Avg)||0).toFixed(1)+'/5';
+  document.getElementById('kv-edl').textContent  = fmtN(sum(data.map(r=>pf(r.Downloads_or_Views))));
+  document.getElementById('ep-events').textContent = data.length + ' records loaded';
+
+  const el = evs.map(r=>r.Resource_Name||r.Event_Date||'').reverse();
+  mkChart('ch-evtYoY', {type:'bar', data:{labels:el, datasets:[
+    {label:'Gross', data:evs.map(r=>pf(r.Gross_Revenue_USD)).reverse(), backgroundColor:navy,  borderRadius:5},
+    {label:'Net',   data:evs.map(r=>pf(r.Net_Revenue_USD)).reverse(),   backgroundColor:orange,borderRadius:5}
+  ]}, options:{responsive:true,maintainAspectRatio:false,
+    plugins:{legend:{display:true,position:'top',labels:{usePointStyle:true,pointStyleWidth:8,padding:12}}},
+    scales:{x:scaleX, y:{...scaleY,ticks:{callback:v=>'$'+(v/1000)+'K'}}}}});
+
+  const wa = evs.find(r=>pf(r.Attendees_In_Person)>0);
+  if (wa) {
+    const ip=pf(wa.Attendees_In_Person), vt=pf(wa.Attendees_Virtual);
+    mkChart('ch-evtMix', {type:'doughnut', data:{labels:[`In-Person (${Math.round(ip)})`,`Virtual (${Math.round(vt)})`],
+      datasets:[{data:[ip,vt], backgroundColor:[navy,teal], borderWidth:0, hoverOffset:4}]},
+      options:{responsive:true,maintainAspectRatio:false, cutout:'65%',
+        plugins:{legend:{display:true,position:'bottom',labels:{padding:12,usePointStyle:true}}}}});
+  }
+
+  document.getElementById('evt-tbody').innerHTML = data.map(r=>
+    `<tr><td style="font-size:11px;color:var(--muted)">${r.Resource_ID||'—'}</td>
+    <td><span class="bdg ${(r.Resource_Type||'')==='Event'?'bg-b':'bg-gr'}">${r.Resource_Type||'—'}</span></td>
+    <td style="font-weight:500">${r.Resource_Name||'—'}</td>
+    <td>${r.Event_Date||'—'}</td>
+    <td>${pf(r.Gross_Revenue_USD)?fmt$(pf(r.Gross_Revenue_USD)):'—'}</td>
+    <td style="font-weight:600">${pf(r.Net_Revenue_USD)?fmt$(pf(r.Net_Revenue_USD)):'—'}</td>
+    <td>${Math.round(pf(r.Total_Registrations)||pf(r.Attendees_In_Person))||'—'}</td>
+    <td>${pf(r.Downloads_or_Views)?Math.round(pf(r.Downloads_or_Views)).toLocaleString():'—'}</td>
+    <td>${pf(r.Satisfaction_Score_Avg)?'★ '+pf(r.Satisfaction_Score_Avg).toFixed(1):'—'}</td></tr>`).join('');
+}
+
+// ── PAGE NAVIGATION ───────────────────────────────────────────
+function showPage(id, el) {
+  document.querySelectorAll('.page').forEach(p=>p.classList.remove('on'));
+  document.querySelectorAll('.ntab').forEach(t=>t.classList.remove('on'));
+  document.getElementById('pg-'+id).classList.add('on');
+  el.classList.add('on');
+}
+</script>
+
+<!--
+════════════════════════════════════════════════════════════════════
+  ██████   AMI DASHBOARD — FIREBASE SETUP GUIDE   ██████
+════════════════════════════════════════════════════════════════════
+
+Follow these steps ONE TIME. After this, anyone can open your
+Netlify link and see the dashboard. You never repeat this setup.
+
+────────────────────────────────────────────────────────────────────
+STEP 1 — Create a free Firebase account
+────────────────────────────────────────────────────────────────────
+1. Go to:  https://firebase.google.com
+2. Click "Get started" (top right)
+3. Sign in with your Google account
+
+────────────────────────────────────────────────────────────────────
+STEP 2 — Create a new project
+────────────────────────────────────────────────────────────────────
+1. Click "Add project"
+2. Name it:  ami-dashboard
+3. Turn OFF Google Analytics (you don't need it)
+4. Click "Create project"
+5. Wait ~30 seconds, then click "Continue"
+
+────────────────────────────────────────────────────────────────────
+STEP 3 — Enable the Realtime Database
+────────────────────────────────────────────────────────────────────
+1. In the left sidebar, click "Build" → "Realtime Database"
+2. Click "Create Database"
+3. Choose the location closest to you (United States is fine)
+4. When it asks about security rules → choose "Start in TEST MODE"
+   (This lets the dashboard read and write data)
+5. Click "Enable"
+
+────────────────────────────────────────────────────────────────────
+STEP 4 — Get your Firebase config
+────────────────────────────────────────────────────────────────────
+1. Click the gear icon ⚙️ (top left, next to "Project Overview")
+2. Click "Project settings"
+3. Scroll down to "Your apps"
+4. Click the </> (Web) icon
+5. Name it "ami-dashboard-web", click "Register app"
+6. You will see a block of code that looks like:
+
+   const firebaseConfig = {
+     apiKey: "AIzaSy...",
+     authDomain: "ami-dashboard-12345.firebaseapp.com",
+     databaseURL: "https://ami-dashboard-12345-default-rtdb.firebaseio.com",
+     projectId: "ami-dashboard-12345",
+     storageBucket: "ami-dashboard-12345.appspot.com",
+     messagingSenderId: "123456789",
+     appId: "1:123456789:web:abc123"
+   };
+
+7. COPY all of that config block
+
+────────────────────────────────────────────────────────────────────
+STEP 5 — Paste the config into this file
+────────────────────────────────────────────────────────────────────
+1. Open this file (index.html) in Notepad (Windows) or TextEdit (Mac)
+   - Windows: Right-click the file → "Open with" → Notepad
+   - Mac: Right-click → "Open with" → TextEdit
+2. Press Ctrl+F (Windows) or Cmd+F (Mac) to search
+3. Search for:  AIzaSyC3gSyAD09jGZwJSWRvRY5hSuk3TJ_v64k
+4. Replace the ENTIRE firebaseConfig block with the one you copied
+5. Save the file
+
+────────────────────────────────────────────────────────────────────
+STEP 6 — Change your admin password (optional but recommended)
+────────────────────────────────────────────────────────────────────
+1. In the same file, find:  const ADMIN_PASSWORD = "AMI2025admin";
+2. Replace AMI2025admin with your own password
+3. Save the file
+
+────────────────────────────────────────────────────────────────────
+STEP 7 — Deploy to Netlify
+────────────────────────────────────────────────────────────────────
+1. Make sure this file is named exactly:  index.html
+2. Put it in a folder with your 5 CSV files
+3. Go to netlify.com → drag the folder onto the dashboard
+4. Copy the live URL Netlify gives you (e.g. your-site.netlify.app)
+5. Share that URL with your team!
+
+────────────────────────────────────────────────────────────────────
+HOW IT WORKS AFTER SETUP
+────────────────────────────────────────────────────────────────────
+• Drew logs in as ADMIN with the password
+• Uploads the 5 CSV files → data saves to Firebase cloud
+• ANYONE with the Netlify link clicks "View Only" (no password)
+• They see exactly the same live data Drew uploaded
+• When Drew updates a CSV, everyone's dashboard updates instantly
+
+────────────────────────────────────────────────────────────────────
+NEED HELP?
+────────────────────────────────────────────────────────────────────
+If you get stuck at any step, take a screenshot and ask Claude.
+The most common issue is forgetting to add the databaseURL field —
+make sure it's in the config (it looks like:
+https://your-project-default-rtdb.firebaseio.com)
+════════════════════════════════════════════════════════════════════
+-->
+
+</body>
+</html>
